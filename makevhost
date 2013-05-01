@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# users
+user="$(whoami)"
+root="$(sudo whoami)"
+apache="www-data"
+
+# params
+vhost=$1
+repo=$2
+
+# directories
+vhosts="/var/www/vhosts/"
+sites="/etc/apache2/sites-available/"
+path=$vhosts$vhost
+
+
+if [ "$vhost" == "" ] ; then
+  echo "Type vhost name as a parameter"
+else
+  echo " *"
+  echo "****** Creating vhost directory"
+
+  if [ -d "$path" ] ; then
+    echo " * Vhost directory already exists. Skipping"
+  else
+    # create vhost directory
+    sudo mkdir $path
+    sudo chown $user:$root $path
+    
+    # create logs directory
+    echo " * Creating logs direcory"
+    sudo mkdir $path/logs
+    sudo chown $apache:$apache $path/logs
+    
+    # clone git repository (if second script parameter was specified)
+    if [ "$repo" != "" ] ; then
+      echo " * Cloning git repository"
+      git clone $repo $path/httpdocs
+    
+      if [ "$?" != "0" ] ; then
+        echo " * !! Some error occured. Leaving empty vhost directory."
+      fi
+    fi
+    
+    # create httpdocs directory (if repo wasnt specified or git clone failed)
+    if [ ! -d "$path/httpdocs" ] ; then
+      mkdir $path/httpdocs
+    fi
+    
+    echo " * Fixing permissions"
+    sudo chown $user:$apache $path/httpdocs -R
+    sudo chown $root:$root $path
+    echo " * Done"
+  fi
+  
+  # create vhost file
+  echo " *"
+  echo "****** Creating apache vhost file"
+  
+  if [ ! -f "$sites$vhost" ] ; then
+    echo " * Specify document root:"
+    read -p " * >> $path/httpdocs" docroot
+    
+    echo " * Specify server name (leave blank for: $vhost):"
+    read -p " * >> " servername
+
+    if [ "$servername" == "" ] ; then
+      servername=$vhost
+    fi
+    
+    # insert content into vhost file
+    sudo touch $sites$vhost
+    cat << EOL | sudo tee -a $sites$vhost > /dev/null
+<VirtualHost *:80>
+	DocumentRoot $path/httpdocs$docroot
+	ServerName $servername
+
+	<Directory $path/httpdocs$docroot>
+                Options Indexes FollowSymLinks MultiViews
+                AllowOverride All
+                Order allow,deny
+                Allow from all
+        </Directory>
+
+	ErrorLog $path/logs/error.log
+	CustomLog $path/logs/access.log combined
+</VirtualHost>
+EOL
+
+    if [ -f $sites$vhost ] ; then
+      # enable site
+      echo " * Enabling vhost"
+      sudo a2ensite $vhost > /dev/null
+
+      if [ "$?" != "0" ] ; then
+        echo " * !! Cant enable vhost"
+      else
+        # check if vhost file is correct
+        echo " * Checking apache config"
+        sudo apachectl configtest > /dev/null
+        
+        if [ "$?" != "0" ] ; then
+          echo " * !! An error occured. Disabling vhost"
+          sudo a2dissite $vhost > /dev/null
+        else
+          # reload apache
+          sudo service apache2 reload
+          echo " * Adding vhost to /etc/hosts"
+          echo "127.0.0.1	$servername" | sudo tee -a /etc/hosts > /dev/null
+        fi
+      fi
+    fi
+
+    echo " * Done"
+  else
+    echo " * Vhost file already exists. Skipping"
+  fi
+  
+  echo " *"
+fi
