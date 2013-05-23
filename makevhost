@@ -25,7 +25,7 @@ else
     echo " * Vhost directory already exists. Skipping"
   else
     # create vhost directory
-    sudo mkdir $path
+    sudo mkdir -p $path
     sudo chown $user:$root $path
     
     # create logs directory
