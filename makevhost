@@ -58,7 +58,7 @@ else
   echo " *"
   echo "****** Creating apache vhost file"
   
-  if [ ! -f "$sites$vhost" ] ; then
+  if [ ! -f "$sites$vhost.conf" ] ; then
     echo " * Specify document root:"
     read -p " * >> $path/httpdocs" docroot
     
@@ -70,8 +70,8 @@ else
     fi
     
     # insert content into vhost file
-    sudo touch $sites$vhost
-    cat << EOL | sudo tee -a $sites$vhost > /dev/null
+    sudo touch $sites$vhost.conf
+    cat << EOL | sudo tee -a $sites$vhost.conf > /dev/null
 <VirtualHost *:80>
 	DocumentRoot $path/httpdocs$docroot
 	ServerName $servername
@@ -88,7 +88,7 @@ else
 </VirtualHost>
 EOL
 
-    if [ -f $sites$vhost ] ; then
+    if [ -f $sites$vhost.conf ] ; then
       # enable site
       echo " * Enabling vhost"
       sudo a2ensite $vhost > /dev/null
